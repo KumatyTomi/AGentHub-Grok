@@ -15,8 +15,13 @@
 - Testy: probe unit + API env/heartbeat/markers
 - Doctor pokazuje wynik lokalnej sondy
 
+### Docs
+- ROADMAP zaktualizowany: 0.3 done, plan 0.3.1 → 0.7
+- README ze skrótem roadmapy
+
 ### Windows install
-- start-core / start-agent skrypty używają mesh-core 0.3 (przy kolejnym packu)
+- `start-agent.cmd` na ALPHA/BETA
+- `windows-install/core` zsynchronizowany z 0.3
 
 ## 0.2.0 — 2026-07-29 (sprint „2 tygodnie” skondensowany)
 
@@ -35,7 +40,7 @@
 - `STATUS.bat`, lepszy `CZYTAJ-MNIE`
 
 ### Docs
-- ARCHITECTURE.md, ROADMAP (wykonany), CHANGELOG
+- ARCHITECTURE.md, ROADMAP, CHANGELOG
 
 ## 0.1.0 — 2026-07-29
 - Pierwszy ZIP instalatora Windows
