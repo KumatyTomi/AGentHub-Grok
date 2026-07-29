@@ -29,46 +29,53 @@ async function envPanel() {
   const root = $("#env-panel");
   const tools = e.tools || {};
   const toolBits = [
-    tools.node ? `node ${tools.node}` : null,
-    tools.codex ? "codex ✓" : "codex —",
-    tools.git ? "git ✓" : "git —",
-    tools.ollama ? "ollama ✓" : "ollama —",
+    tools.node ? "node " + tools.node : null,
+    tools.codex ? "codex OK" : "codex —",
+    tools.git ? "git OK" : "git —",
+    tools.ollama ? "ollama OK" : "ollama —",
   ]
     .filter(Boolean)
     .join(" · ");
 
-  root.innerHTML = `
-    <div class="env-card">
-      <span class="k">Host</span>
-      <strong>${esc(e.hostname)}</strong>
-      <span class="v">${esc(e.primaryIp)} · ${esc(e.platform)}/${esc(e.arch)}</span>
-    </div>
-    <div class="env-card">
-      <span class="k">CPU</span>
-      <strong>${esc(e.cpu?.model || "—")}</strong>
-      <span class="v">${e.cpu?.cores ?? "—"} cores · load ${esc(JSON.stringify(e.cpu?.loadAvg || []))}</span>
-    </div>
-    <div class="env-card">
-      <span class="k">RAM</span>
-      <strong>${esc(e.memory?.totalGb)} GB</strong>
-      <span class="v">użycie ${e.memory?.usedPercent ?? 0}%</span>
-    </div>
-    <div class="env-card">
-      <span class="k">GPU</span>
-      <strong>${esc(e.gpu?.name || "nie wykryto")}</strong>
-      <span class="v">${e.gpu?.vramMb ? e.gpu.vramMb + " MB VRAM" : "—"}</span>
-    </div>
-    <div class="env-card">
-      <span class="k">Dysk</span>
-      <strong>${e.disk ? esc(e.disk.path) : "—"}</strong>
-      <span class="v">${e.disk ? `${e.disk.usedPercent}% z ${e.disk.totalTb} TB` : "brak odczytu"}</span>
-    </div>
-    <div class="env-card">
-      <span class="k">Narzędzia</span>
-      <strong>local machine = ${esc(j.localMachineId || "—")}</strong>
-      <span class="v">${esc(toolBits)}</span>
-    </div>
-  `;
+  const load = Array.isArray(e.cpu && e.cpu.loadAvg) ? e.cpu.loadAvg.join(", ") : "—";
+
+  root.innerHTML =
+    '<div class="env-card"><span class="k">Host</span><strong>' +
+    esc(e.hostname) +
+    '</strong><span class="v">' +
+    esc(e.primaryIp) +
+    " · " +
+    esc(e.platform) +
+    "/" +
+    esc(e.arch) +
+    "</span></div>" +
+    '<div class="env-card"><span class="k">CPU</span><strong>' +
+    esc(e.cpu && e.cpu.model) +
+    '</strong><span class="v">' +
+    esc(e.cpu && e.cpu.cores) +
+    " cores · load " +
+    esc(load) +
+    "</span></div>" +
+    '<div class="env-card"><span class="k">RAM</span><strong>' +
+    esc(e.memory && e.memory.totalGb) +
+    ' GB</strong><span class="v">użycie ' +
+    esc(e.memory && e.memory.usedPercent) +
+    "%</span></div>" +
+    '<div class="env-card"><span class="k">GPU</span><strong>' +
+    esc((e.gpu && e.gpu.name) || "nie wykryto") +
+    '</strong><span class="v">' +
+    esc(e.gpu && e.gpu.vramMb ? e.gpu.vramMb + " MB VRAM" : "—") +
+    "</span></div>" +
+    '<div class="env-card"><span class="k">Dysk</span><strong>' +
+    esc(e.disk ? e.disk.path : "—") +
+    '</strong><span class="v">' +
+    esc(e.disk ? e.disk.usedPercent + "% z " + e.disk.totalTb + " TB" : "brak odczytu") +
+    "</span></div>" +
+    '<div class="env-card"><span class="k">Narzędzia</span><strong>local machine = ' +
+    esc(j.localMachineId || "—") +
+    '</strong><span class="v">' +
+    esc(toolBits) +
+    "</span></div>";
 }
 
 async function snapshot() {
@@ -87,20 +94,51 @@ async function snapshot() {
     const q = m.status === "kwarantanna";
     const hw = m.hardware || {};
     const env = m.environment;
-    el.innerHTML = `
-      <h3><span class="dot ${on ? "on" : q ? "q" : ""}"></span>${esc(m.name)}</h3>
-      <div class="role">${esc(m.role)} · ${esc(m.status)}</div>
-      <div class="meta">${esc(m.host)} · ${esc(m.os)}<br/>replika ${m.replicaHealth}% · ${esc(m.integrity)}</div>
-      <div class="meta"><b>CPU</b> ${esc(hw.cpu || "—")}<br/><b>GPU</b> ${esc(hw.gpu || "—")}<br/>
-        ${hw.ramGb || 0} GB RAM · ${hw.vramGb || 0} GB VRAM · ${hw.diskTb || 0} TB</div>
-      <div class="meta">CPU ${Math.round(m.metrics?.cpu ?? 0)}% · RAM ${Math.round(m.metrics?.ram ?? 0)}% · Dysk ${Math.round(m.metrics?.disk ?? 0)}%</div>
-      <div class="bar"><i style="width:${m.metrics?.cpu ?? 0}%"></i></div>
-      ${
-        env
-          ? `<div class="meta probed">sonda ${esc(env.hostname)} · ${esc(env.probedAt?.slice(11, 19) || "")}</div>`
-          : `<div class="meta muted">brak sondy — uruchom node-agent</div>`
-      }
-    `;
+    const probedAt = env && env.probedAt ? String(env.probedAt).slice(11, 19) : "";
+    el.innerHTML =
+      "<h3><span class=\"dot " +
+      (on ? "on" : q ? "q" : "") +
+      "\"></span>" +
+      esc(m.name) +
+      "</h3>" +
+      '<div class="role">' +
+      esc(m.role) +
+      " · " +
+      esc(m.status) +
+      "</div>" +
+      '<div class="meta">' +
+      esc(m.host) +
+      " · " +
+      esc(m.os) +
+      "<br/>replika " +
+      esc(m.replicaHealth) +
+      "% · " +
+      esc(m.integrity) +
+      "</div>" +
+      '<div class="meta"><b>CPU</b> ' +
+      esc(hw.cpu || "—") +
+      "<br/><b>GPU</b> " +
+      esc(hw.gpu || "—") +
+      "<br/>" +
+      esc(hw.ramGb || 0) +
+      " GB RAM · " +
+      esc(hw.vramGb || 0) +
+      " GB VRAM · " +
+      esc(hw.diskTb || 0) +
+      " TB</div>" +
+      '<div class="meta">CPU ' +
+      Math.round(m.metrics?.cpu ?? 0) +
+      "% · RAM " +
+      Math.round(m.metrics?.ram ?? 0) +
+      "% · Dysk " +
+      Math.round(m.metrics?.disk ?? 0) +
+      "%</div>" +
+      '<div class="bar"><i style="width:' +
+      (m.metrics?.cpu ?? 0) +
+      '%"></i></div>' +
+      (env
+        ? '<div class="meta probed">sonda ' + esc(env.hostname) + " · " + esc(probedAt) + "</div>"
+        : '<div class="meta muted">brak sondy — uruchom node-agent</div>');
     root.appendChild(el);
   }
 
@@ -108,20 +146,37 @@ async function snapshot() {
   audit.innerHTML = "";
   for (const a of (s.audit || []).slice(0, 16)) {
     const li = document.createElement("li");
-    li.innerHTML = `<b>${esc(a.action)}</b> · ${esc(a.detail)} <span style="opacity:.6">${esc(a.at?.slice(11, 19) || "")}</span>`;
+    li.innerHTML =
+      "<b>" +
+      esc(a.action) +
+      "</b> · " +
+      esc(a.detail) +
+      ' <span style="opacity:.6">' +
+      esc(a.at ? String(a.at).slice(11, 19) : "") +
+      "</span>";
     audit.appendChild(li);
   }
 
   const tl = $("#tasklist");
   tl.innerHTML = "";
   if (!s.tasks?.length) {
-    tl.innerHTML = `<p class="muted">Brak zadań — dodaj z panelu akcji.</p>`;
+    tl.innerHTML = '<p class="muted">Brak zadań — dodaj z panelu akcji.</p>';
   } else {
     for (const t of s.tasks.slice(0, 12)) {
       const d = document.createElement("div");
       d.className = "task";
-      d.innerHTML = `<strong>${esc(t.title)}</strong> · ${esc(t.state)} · ${esc(t.assignedTo || "—")} · ${t.progress}%
-        <div class="bar"><i style="width:${t.progress}%"></i></div>`;
+      d.innerHTML =
+        "<strong>" +
+        esc(t.title) +
+        "</strong> · " +
+        esc(t.state) +
+        " · " +
+        esc(t.assignedTo || "—") +
+        " · " +
+        t.progress +
+        '%<div class="bar"><i style="width:' +
+        t.progress +
+        '%"></i></div>';
       tl.appendChild(d);
     }
   }
@@ -147,9 +202,9 @@ async function cmd(path, body = {}) {
         " · " +
         j.environment.primaryIp +
         "\n" +
-        j.environment.cpu?.model +
+        (j.environment.cpu && j.environment.cpu.model) +
         "\n" +
-        j.environment.memory?.totalGb +
+        (j.environment.memory && j.environment.memory.totalGb) +
         " GB RAM",
     );
   }
@@ -182,7 +237,7 @@ async function refresh() {
 
 try {
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/v1/events`);
+  const ws = new WebSocket(proto + "://" + location.host + "/v1/events");
   ws.onmessage = () => refresh();
 } catch {
   /* optional */
