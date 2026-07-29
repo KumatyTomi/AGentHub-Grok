@@ -1,0 +1,11 @@
+# local secrets / machine-specific
+local-cluster/config/cluster.env
+**/*.local
+.DS_Store
+Thumbs.db
+node_modules/
+.env
+.env.*
+!.env.example
+E:/
+*.log
