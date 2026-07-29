@@ -1,11 +1,12 @@
-# local secrets / machine-specific
 local-cluster/config/cluster.env
-**/*.local
+windows-install/config/cluster.env
+**/cluster.env
+packages/mesh-core/data/
+windows-install/core/data/
+**/*.log
+node_modules/
 .DS_Store
 Thumbs.db
-node_modules/
 .env
 .env.*
 !.env.example
-E:/
-*.log

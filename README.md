@@ -1,62 +1,45 @@
 # AGentHub-Grok
 
-**Prywatny / lokalny hub agentów AI** — 3 komputery w LAN, bez chmury jako domyślnej ścieżki.
+**Lokalny hub agentów AI na 3 PC** — LAN only. Bez SaaS jako domyślnej ścieżki.
 
-| Stacja | Rola | IP (domyślnie) |
-|--------|------|----------------|
-| **ALPHA** | kodowanie · dual monitor · **Codex CLI** | `10.20.0.10` |
-| **BETA** | koordynator · touch · **rdzeń :8765** | `10.20.0.20` |
-| **GAMMA** | obliczenia · **Ollama** local LLM | `10.20.0.30` |
+[![Release](https://img.shields.io/github/v/release/KumatyTomi/AGentHub-Grok)](https://github.com/KumatyTomi/AGentHub-Grok/releases)
 
-## Co jest w repo
+| Stacja | IP | Rola | Stack |
+|--------|-----|------|--------|
+| **ALPHA** | `10.20.0.10` | kodowanie · dual monitor | Codex CLI, git, node |
+| **BETA** | `10.20.0.20` | koordynator · touch | **mesh-core :8765** + UI |
+| **GAMMA** | `10.20.0.30` | obliczenia | Ollama :11434 |
 
-```
-local-cluster/          ← instalacja Windows (PowerShell)
-  install/*.ps1
-  config/cluster.env.example
-  docs/KOLEJNOSC.md
-  README.md
-```
+## v0.2 — co jest w środku
 
-To **nie jest** aplikacja SaaS. Skrypty stawiają procesy na Twoich PC (Codex, Ollama, lokalny stub core).
+- **`packages/mesh-core`** — lokalny rdzeń (REST + WebSocket + panel HTML), zgodny z [agentmesh-console](https://github.com/KumatyTomi/agentmesh-console)
+- **Windows install pack** — `windows-install/` + release ZIP
+- **Testy** — `cd packages/mesh-core && npm test`
+- **Docs** — [ARCHITECTURE](./docs/ARCHITECTURE.md) · [ROADMAP](./docs/ROADMAP.md) · [CHANGELOG](./docs/CHANGELOG.md)
 
-## Szybki start
+## Szybki start (Windows)
 
-1. Sklonuj / skopiuj na pendrive.
-2. `cd local-cluster/config` → skopiuj `cluster.env.example` → `cluster.env`, ustaw IP i `E:\AgentMesh`.
-3. Na każdej maszynie (PowerShell **Admin**), w kolejności:
+1. Pobierz [release ZIP](https://github.com/KumatyTomi/AGentHub-Grok/releases)
+2. `INSTALUJ.bat` jako Admin → GAMMA → BETA → ALPHA
+3. Na BETA: `E:\AgentMesh\beta\start-core.cmd` → otwórz `http://127.0.0.1:8765/`
 
-```powershell
-cd local-cluster\install
-Set-ExecutionPolicy -Scope Process Bypass
-.\03-gamma-ollama.ps1    # najpierw model
-.\02-beta-core.ps1       # potem rdzeń
-.\01-alpha-codex.ps1     # potem Codex
-.\00-network-check.ps1
+### Dev (mesh-core na dowolnym PC z Node 20+)
+
+```bash
+cd packages/mesh-core
+CORE_PORT=8765 CORE_HOST=127.0.0.1 node server.mjs
+# UI: http://127.0.0.1:8765/
+# test: npm test
 ```
 
-Albo: `.\install-all-guide.ps1`
+### agentmesh-console
 
-Szczegóły: [local-cluster/README.md](./local-cluster/README.md) · checklista: [local-cluster/docs/KOLEJNOSC.md](./local-cluster/docs/KOLEJNOSC.md)
+Panel Lovable/TS: ustaw **Local API** → `http://10.20.0.20:8765` (ten core).
 
 ## Air-gap
 
-`CODEX_MODE=local` + Ollama na GAMMA → bez `codex login`, firewall tylko subnet klastra.
+`CODEX_MODE=local` + Ollama na GAMMA + brak `codex login` + firewall tylko subnet.
 
-## Status
+## Licencja / użycie
 
-| Element | Stan |
-|---------|------|
-| Skrypty instalacyjne ALPHA/BETA/GAMMA | ✅ |
-| Stub core `/v1/health` + snapshot | ✅ (Node na BETA) |
-| Pełny AgentMesh-core (replikacja, PIN, invite crypto) | 🔜 |
-| Panel UI (agentmesh-console) | osobne repo / podpięcie później |
-
-## Powiązane
-
-- [agentmesh-console](https://github.com/KumatyTomi/agentmesh-console) — panel operatorski (UI)
-- Ten repo = **instalacja + hub lokalny pod Grok / Codex**
-
----
-
-MIT / private use — dane zostają w LAN.
+Private / lokalne — dane w LAN.

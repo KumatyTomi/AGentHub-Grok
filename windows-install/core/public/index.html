@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AGentHub · mesh-core (local)</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="bg"></div>
+  <header class="top">
+    <div>
+      <p class="eyebrow">LOCAL ONLY · LAN · mesh-core 0.2</p>
+      <h1 id="cluster-name">MESH</h1>
+      <p class="muted" id="endpoint">—</p>
+    </div>
+    <div class="chips">
+      <div class="chip"><span>STATUS</span><strong id="health">…</strong></div>
+      <div class="chip"><span>ONLINE</span><strong id="online">—</strong></div>
+      <div class="chip"><span>TASKS</span><strong id="tasks">—</strong></div>
+      <div class="chip"><span>LAT</span><strong id="lat">—</strong></div>
+    </div>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>Maszyny (3 PC)</h2>
+      <div id="machines" class="grid3"></div>
+    </section>
+
+    <section class="row2">
+      <div class="panel">
+        <h2>Akcje operatorskie</h2>
+        <div class="actions">
+          <button type="button" data-cmd="cluster/create-invite">Generuj invite</button>
+          <button type="button" data-cmd="tasks/create" data-body='{"title":"Zadanie lokalne","assignedTo":"alpha"}'>Nowe zadanie → ALPHA</button>
+          <button type="button" data-cmd="machines/heartbeat" data-body='{"id":"alpha","replicaHealth":100}'>Heartbeat ALPHA</button>
+          <button type="button" data-cmd="machines/heartbeat" data-body='{"id":"gamma","replicaHealth":100}'>Heartbeat GAMMA</button>
+          <button type="button" data-cmd="integrations/test" data-body='{"id":"ollama-gamma"}'>Test Ollama adapter</button>
+          <button type="button" class="warn" data-cmd="cluster/revoke-invites">Unieważnij invite</button>
+        </div>
+        <label class="pin">
+          PIN (wrażliwe)
+          <input id="pin" type="password" inputmode="numeric" maxlength="6" placeholder="6 cyfr" />
+        </label>
+      </div>
+      <div class="panel">
+        <h2>Log / audit</h2>
+        <ul id="audit" class="log"></ul>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Zadania</h2>
+      <div id="tasklist" class="tasks"></div>
+    </section>
+  </main>
+
+  <footer>
+    AGentHub-Grok · dane nie wychodzą z LAN ·
+    <a href="/v1/health">/v1/health</a> ·
+    <a href="/v1/cluster/snapshot">/v1/cluster/snapshot</a>
+  </footer>
+  <script src="/app.js"></script>
+</body>
+</html>

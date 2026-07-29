@@ -1,10 +1,6 @@
 AGentHub-Grok Windows Install Pack
-Version: 0.1.0
+Version: 0.2.0
 Date: 2026-07-29
 Target: Windows 10/11 x64
+Core: packages/mesh-core 0.2.0 (embedded operator UI on :8765)
 Repo: https://github.com/KumatyTomi/AGentHub-Grok
-Contents:
-  - PowerShell installers for ALPHA / BETA / GAMMA
-  - Local core stub (generated on BETA by 02-beta-core.ps1)
-  - cluster.env.example
-  - docs

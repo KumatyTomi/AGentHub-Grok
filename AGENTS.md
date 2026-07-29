@@ -1,17 +1,19 @@
 # AGENTS.md — AGentHub-Grok
 
-## Cel projektu
-Lokalny klaster 3 PC (ALPHA dual+Codex, BETA touch+core, GAMMA Ollama). Wszystko w LAN. Nie buduj SaaS / cloud-first.
+## Cel
+Lokalny klaster 3 PC. Nie buduj SaaS. Nie domyślaj Vercel dla core.
 
 ## Priorytety
-1. Skrypty w `local-cluster/install/` muszą działać na Windows 10/11 (PowerShell Admin).
-2. Domyślnie air-gap friendly: modele lokalne, firewall subnet-only.
-3. Core na BETA może być stubem Node, ale kontrakt REST: `GET /v1/health`, `GET /v1/cluster/snapshot`, `POST /v1/*`.
-4. Nie commituj `cluster.env` (tajemnic / IP produkcyjnych) — tylko `cluster.env.example`.
+1. `packages/mesh-core` musi przechodzić `npm test` (node --test).
+2. Kontrakt API zgodny z agentmesh-console client (health, snapshot, POST /v1/*, WS /v1/events).
+3. Install pack Windows w `windows-install/` trzyma kopię core w `windows-install/core/`.
+4. Nie commituj `cluster.env` ani `packages/mesh-core/data/`.
 
-## Role maszyn
-koordynator | kodowanie | obliczenia | magazyn | renderowanie | obserwator
+## Role
+koordynator | obliczenia | magazyn | renderowanie | zapasowa | obserwator
+(ALPHA w docs: kodowanie → mapuj na obliczenia/renderowanie w API)
 
-## Gdy dodajesz funkcje
-- Najpierw skrypt / proces lokalny, potem ewentualnie UI.
-- UI zawsze → localhost/LAN API, nigdy jako jedyne źródło prawdy.
+## Po zmianach w core
+- Zaktualizuj windows-install/core
+- Odśwież ZIP release
+- CHANGELOG
