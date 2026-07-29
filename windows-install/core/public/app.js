@@ -2,10 +2,10 @@ const $ = (s) => document.querySelector(s);
 
 function esc(s) {
   return String(s ?? "")
-    .replace(/&/g, "&")
-    .replace(/</g, "<")
-    .replace(/>/g, ">")
-    .replace(/"/g, """);
+    .replace(/&/g, "&" + "amp;")
+    .replace(/</g, "&" + "lt;")
+    .replace(/>/g, "&" + "gt;")
+    .replace(/"/g, "&" + "quot;");
 }
 
 async function health() {
@@ -81,9 +81,9 @@ async function envPanel() {
 async function snapshot() {
   const r = await fetch("/v1/cluster/snapshot");
   const s = await r.json();
-  $("#cluster-name").textContent = s.config?.clusterName || "MESH";
-  $("#endpoint").textContent = s.config?.endpoint || location.origin;
-  $("#tasks").textContent = String(s.tasks?.length ?? 0);
+  $("#cluster-name").textContent = (s.config && s.config.clusterName) || "MESH";
+  $("#endpoint").textContent = (s.config && s.config.endpoint) || location.origin;
+  $("#tasks").textContent = String((s.tasks && s.tasks.length) || 0);
 
   const root = $("#machines");
   root.innerHTML = "";
@@ -95,10 +95,13 @@ async function snapshot() {
     const hw = m.hardware || {};
     const env = m.environment;
     const probedAt = env && env.probedAt ? String(env.probedAt).slice(11, 19) : "";
+    const cpuPct = Math.round((m.metrics && m.metrics.cpu) || 0);
+    const ramPct = Math.round((m.metrics && m.metrics.ram) || 0);
+    const diskPct = Math.round((m.metrics && m.metrics.disk) || 0);
     el.innerHTML =
-      "<h3><span class=\"dot " +
+      '<h3><span class="dot ' +
       (on ? "on" : q ? "q" : "") +
-      "\"></span>" +
+      '"></span>' +
       esc(m.name) +
       "</h3>" +
       '<div class="role">' +
@@ -127,14 +130,14 @@ async function snapshot() {
       esc(hw.diskTb || 0) +
       " TB</div>" +
       '<div class="meta">CPU ' +
-      Math.round(m.metrics?.cpu ?? 0) +
+      cpuPct +
       "% · RAM " +
-      Math.round(m.metrics?.ram ?? 0) +
+      ramPct +
       "% · Dysk " +
-      Math.round(m.metrics?.disk ?? 0) +
+      diskPct +
       "%</div>" +
       '<div class="bar"><i style="width:' +
-      (m.metrics?.cpu ?? 0) +
+      cpuPct +
       '%"></i></div>' +
       (env
         ? '<div class="meta probed">sonda ' + esc(env.hostname) + " · " + esc(probedAt) + "</div>"
@@ -146,20 +149,21 @@ async function snapshot() {
   audit.innerHTML = "";
   for (const a of (s.audit || []).slice(0, 16)) {
     const li = document.createElement("li");
+    const at = a.at ? String(a.at).slice(11, 19) : "";
     li.innerHTML =
       "<b>" +
       esc(a.action) +
       "</b> · " +
       esc(a.detail) +
       ' <span style="opacity:.6">' +
-      esc(a.at ? String(a.at).slice(11, 19) : "") +
+      esc(at) +
       "</span>";
     audit.appendChild(li);
   }
 
   const tl = $("#tasklist");
   tl.innerHTML = "";
-  if (!s.tasks?.length) {
+  if (!s.tasks || !s.tasks.length) {
     tl.innerHTML = '<p class="muted">Brak zadań — dodaj z panelu akcji.</p>';
   } else {
     for (const t of s.tasks.slice(0, 12)) {
@@ -183,7 +187,8 @@ async function snapshot() {
   return s;
 }
 
-async function cmd(path, body = {}) {
+async function cmd(path, body) {
+  body = body || {};
   const pin = $("#pin").value.trim();
   if (pin) body.pin = pin;
   const r = await fetch("/v1/" + path.replace(/^\//, ""), {
@@ -217,7 +222,7 @@ function bindActions() {
       let body = {};
       try {
         body = JSON.parse(btn.getAttribute("data-body") || "{}");
-      } catch {
+      } catch (e) {
         body = {};
       }
       cmd(btn.getAttribute("data-cmd"), body);
@@ -239,7 +244,7 @@ try {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(proto + "://" + location.host + "/v1/events");
   ws.onmessage = () => refresh();
-} catch {
+} catch (e) {
   /* optional */
 }
 
