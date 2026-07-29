@@ -10,21 +10,24 @@
 | **BETA** | `10.20.0.20` | koordynator · touch | **mesh-core :8765** + UI + **sonda** |
 | **GAMMA** | `10.20.0.30` | obliczenia | Ollama :11434, **node-agent** |
 
-## v0.3 — sonda środowiska
+## v0.3.1 — sonda + Grafana
 
 - **`packages/mesh-core`** — rdzeń czyta **prawdziwy** host (CPU/RAM/IP/GPU/dysk/narzędzia)
 - **GET `/v1/env`** + boot probe + skan `node.json`
 - **`scripts/node-agent.mjs`** — heartbeat z sondą na ALPHA/GAMMA
 - Panel pokazuje realny hardware zamiast „—”
 - Testy `npm test` w `packages/mesh-core`
-- Docs: [ARCHITECTURE](./docs/ARCHITECTURE.md) · [CHANGELOG](./docs/CHANGELOG.md) · [**ROADMAP**](./docs/ROADMAP.md)
+- **Prometheus `/metrics`** + stack Grafana w `monitoring/`
+- Docs: [ARCHITECTURE](./docs/ARCHITECTURE.md) · [CHANGELOG](./docs/CHANGELOG.md) · [**ROADMAP**](./docs/ROADMAP.md) · [**MONITORING**](./docs/MONITORING.md)
 
 ## Roadmap (skrót)
 
 | Wersja | Status | Temat |
 |--------|--------|--------|
 | 0.2 | ✅ | mesh-core + UI + install pack |
-| **0.3** | ✅ **teraz** | **sonda środowiska + node-agent** |
+| 0.3 | ✅ | sonda środowiska + node-agent |
+| **0.3.1** | ✅ **teraz** | **Prometheus /metrics + Grafana** |
+| 0.3.2 | 🔜 | auto-start agentów, alerty |
 | 0.3.1 | 🔜 | auto-start agentów, release ZIP 0.3 |
 | 0.4 | 🔜 | spięcie z agentmesh-console (Local API default) |
 | 0.5 | 🔜 | invite HMAC, hardening |

@@ -77,11 +77,15 @@ export class WebSocketServer {
     });
   }
 
+  clientCount() {
+    return this.clients.size;
+  }
+
   broadcast(text) {
-    const buf = encodeText(text);
+    const frame = encodeText(text);
     for (const s of this.clients) {
       try {
-        s.write(buf);
+        s.write(frame);
       } catch {
         this.clients.delete(s);
       }

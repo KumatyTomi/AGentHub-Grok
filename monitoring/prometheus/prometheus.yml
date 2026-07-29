@@ -1,0 +1,28 @@
+# Scrape mesh-core Prometheus endpoint (/metrics)
+# Default target: host machine Docker gateway → mesh-core on :8765
+# Override for LAN: change target to 10.20.0.20:8765 (BETA)
+
+global:
+  scrape_interval: 10s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: agentmesh
+
+scrape_configs:
+  - job_name: mesh-core
+    metrics_path: /metrics
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          # Windows Docker Desktop / Linux compose extra_hosts:
+          - host.docker.internal:8765
+          # Uncomment for bare LAN scrape of BETA (when Prometheus runs elsewhere):
+          # - 10.20.0.20:8765
+        labels:
+          cluster: MESH-LOCAL-01
+          role: coordinator
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

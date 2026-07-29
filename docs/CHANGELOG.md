@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.1 — 2026-07-29 (Prometheus + Grafana)
+
+### mesh-core
+- **`GET /metrics`** i **`/v1/metrics`** — ekspozycja Prometheus (bez npm deps)
+- **`lib/metrics.js`** — stan maszyn, heartbeat age, CPU/RAM/disk/VRAM, tools, tasks, local probe
+- Health zwraca `metrics: "/metrics"` i wersję **0.3.1**
+- Footer UI: link do `/metrics`
+
+### monitoring/
+- `docker-compose.yml` — Prometheus :9090 + Grafana :3000 (LAN)
+- Dashboard **AgentMesh — stan agentów** (provisioned)
+- Datasource Prometheus auto
+- Docs: [MONITORING.md](./MONITORING.md)
+
+### Testy
+- 14/14 (w tym suite metrics)
+
 ## 0.3.0 — 2026-07-29 (sonda środowiska)
 
 ### mesh-core

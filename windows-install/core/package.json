@@ -1,9 +1,9 @@
 {
   "name": "@agenthub/mesh-core",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "type": "module",
-  "description": "Local-only AgentMesh cluster core for LAN (Windows/Linux). Environment probe + node-agent heartbeats. No cloud.",
+  "description": "Local-only AgentMesh cluster core for LAN. Environment probe, node-agent heartbeats, Prometheus /metrics for Grafana. No cloud.",
   "bin": {
     "mesh-core": "./server.mjs",
     "mesh-node-agent": "./scripts/node-agent.mjs"

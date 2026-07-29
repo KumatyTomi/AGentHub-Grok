@@ -44,13 +44,23 @@ Stan na **2026-07-29**. Lokalny hub agentów — LAN only, bez SaaS jako default
 
 ---
 
-## 🔜 0.3.1 — polish agentów (najbliższe)
+## ✅ 0.3.1 — Prometheus + Grafana (monitor agentów)
+
+- [x] `GET /metrics` + `/v1/metrics` (Prometheus text, zero deps)
+- [x] `lib/metrics.js` — online, heartbeat age, CPU/RAM/disk, tools, tasks
+- [x] Stack `monitoring/` — docker-compose Prometheus + Grafana
+- [x] Dashboard **AgentMesh — stan agentów** (auto-provision)
+- [x] Docs [MONITORING.md](./MONITORING.md)
+- [x] Testy metrics (14 total)
+
+## 🔜 0.3.2 — polish agentów (następne)
 
 - [ ] Windows Service / Task Scheduler auto-start dla `node-agent` (ALPHA/GAMMA)
 - [ ] `start-agent.cmd` także na GAMMA w `03-gamma-ollama.ps1`
 - [ ] Lepszy CPU % na Windows (próbka dwupunktowa, nie lifetime idle)
 - [ ] Doctor: fail-fast jeśli BETA bez `environmentProbed`
-- [ ] Release ZIP **v0.3.0** (pack z sondą)
+- [ ] Grafana alert rules w provisioningu
+- [ ] Release ZIP **v0.3.1** (pack z /metrics)
 
 ---
 
@@ -121,4 +131,4 @@ Stan na **2026-07-29**. Lokalny hub agentów — LAN only, bez SaaS jako default
 | Install Windows | `windows-install/`, `local-cluster/install/` |
 | Repo | https://github.com/KumatyTomi/AGentHub-Grok |
 
-**Aktualna linia:** `0.3.0` (sonda) → następny commit celuje w **0.3.1** (auto-start agentów + release ZIP).
+**Aktualna linia:** `0.3.1` (metrics/Grafana) → następny: **0.3.2** (auto-start agentów + alerty).

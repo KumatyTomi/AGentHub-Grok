@@ -1,17 +1,14 @@
 #!/usr/bin/env node
 /**
- * AGentHub mesh-core v0.3 — lokalny rdzeń klastra (LAN only) + sonda środowiska.
+ * AGentHub mesh-core v0.3.1 — lokalny rdzeń klastra (LAN only) + sonda + metrics.
  *
  * Kontrakt zgodny z agentmesh-console:
  *   GET  /v1/health
  *   GET  /v1/cluster/snapshot
- *   GET  /v1/env                 ← NOWE: surowa sonda lokalna
+ *   GET  /v1/env
+ *   GET  /metrics  |  /v1/metrics   ← Prometheus (Grafana)
  *   POST /v1/{command}
  *   WS   /v1/events
- *
- * Nowe command paths:
- *   env/probe, env/scan-markers
- *   machines/heartbeat (z hardware + environment)
  *
  * UI operatorskie: GET /  (embedded, local-only)
  */
@@ -22,9 +19,10 @@ import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "./lib/ws-lite.js";
 import { MeshStore } from "./lib/store.js";
 import { probeEnvironment } from "./lib/probe.js";
+import { renderPrometheus } from "./lib/metrics.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const VERSION = "0.3.0";
+const VERSION = "0.3.1";
 const PORT = Number(process.env.CORE_PORT || process.env.PORT || 8765);
 const HOST = process.env.CORE_HOST || "0.0.0.0";
 const DATA =
@@ -89,6 +87,19 @@ function sendJson(res, code, body) {
   res.end(raw);
 }
 
+function sendMetrics(res) {
+  const body = renderPrometheus(store, {
+    version: VERSION,
+    wsClients: wss?.clientCount?.() ?? wss?.clients?.size ?? 0,
+  });
+  res.writeHead(200, {
+    "Content-Type": "text/plain; version=0.0.4; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Cache-Control": "no-store",
+  });
+  res.end(body);
+}
+
 async function readBody(req) {
   const chunks = [];
   for await (const c of req) chunks.push(c);
@@ -126,6 +137,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // Prometheus metrics (Grafana scrape)
+  if (
+    (url.pathname === "/metrics" || url.pathname === "/v1/metrics") &&
+    req.method === "GET"
+  ) {
+    return sendMetrics(res);
+  }
+
   // API
   if (url.pathname === "/v1/health" && req.method === "GET") {
     return sendJson(res, 200, {
@@ -138,6 +157,7 @@ const server = http.createServer(async (req, res) => {
       environmentProbed: Boolean(store.snap.config.environmentProbed),
       localMachineId: store.snap._meta?.localMachineId || null,
       hostname: store.lastProbe?.hostname || null,
+      metrics: "/metrics",
     });
   }
 
@@ -204,7 +224,9 @@ server.listen(PORT, HOST, () => {
   console.log(
     `[mesh-core] probe host=${env?.hostname} ip=${env?.primaryIp} cpu=${env?.cpu?.model} ram=${env?.memory?.totalGb}GB machine=${localProbe.machineId}`,
   );
-  console.log(`[mesh-core] UI=http://127.0.0.1:${PORT}/  API=/v1/health  ENV=/v1/env`);
+  console.log(
+    `[mesh-core] UI=http://127.0.0.1:${PORT}/  API=/v1/health  ENV=/v1/env  METRICS=/metrics`,
+  );
 });
 
 process.on("SIGINT", () => {
