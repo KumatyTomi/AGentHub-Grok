@@ -1,0 +1,37 @@
+================================================================================
+  AGentHub-Grok — instalator lokalnego klastra agentów (Windows 10/11)
+  3 komputery: ALPHA (Codex) · BETA (rdzeń) · GAMMA (Ollama)
+  Wszystko w LAN — domyślnie BEZ chmury
+================================================================================
+
+WYMAGANIA
+  - PowerShell jako Administrator
+  - Windows 10 lub 11 (64-bit)
+  - Ta sama sieć lokalna na 3 PC (domyślnie 10.20.0.0/24)
+  - Zalecany dysk E:\AgentMesh (SSD)
+
+INSTALACJA (każdy komputer osobno)
+  1. Rozpakuj to ZIP na pendrive lub dysk (np. D:\AGentHub-Grok-Install)
+  2. Kliknij prawym: INSTALUJ.bat  →  "Uruchom jako administrator"
+     ALBO w PowerShell Admin:
+        cd ścieżka\do\rozpakowanego\folderu
+        Set-ExecutionPolicy -Scope Process Bypass
+        .\INSTALUJ.ps1
+  3. Wybierz stację: [1] ALPHA  [2] BETA  [3] GAMMA  [4] test sieci
+  4. Kolejność na klastrze: najpierw GAMMA, potem BETA, na końcu ALPHA
+
+KONFIGURACJA
+  - Skopiuj config\cluster.env.example → config\cluster.env
+  - Edytuj IP i ścieżki (Notatnik) PRZED instalacją na maszynach
+
+START PO INSTALACJI
+  GAMMA:  E:\AgentMesh\gamma\start-ollama.cmd
+  BETA:   E:\AgentMesh\beta\start-core.cmd
+  ALPHA:  E:\AgentMesh\alpha\start-codex.cmd
+
+TEST
+  curl http://10.20.0.20:8765/v1/health
+  curl http://10.20.0.30:11434/api/tags
+
+Repo: https://github.com/KumatyTomi/AGentHub-Grok
+================================================================================

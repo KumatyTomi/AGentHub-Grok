@@ -1,0 +1,10 @@
+AGentHub-Grok Windows Install Pack
+Version: 0.1.0
+Date: 2026-07-29
+Target: Windows 10/11 x64
+Repo: https://github.com/KumatyTomi/AGentHub-Grok
+Contents:
+  - PowerShell installers for ALPHA / BETA / GAMMA
+  - Local core stub (generated on BETA by 02-beta-core.ps1)
+  - cluster.env.example
+  - docs
