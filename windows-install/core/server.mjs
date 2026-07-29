@@ -1,12 +1,17 @@
 #!/usr/bin/env node
 /**
- * AGentHub mesh-core v0.2 — lokalny rdzeń klastra (LAN only).
+ * AGentHub mesh-core v0.3 — lokalny rdzeń klastra (LAN only) + sonda środowiska.
  *
  * Kontrakt zgodny z agentmesh-console:
  *   GET  /v1/health
  *   GET  /v1/cluster/snapshot
+ *   GET  /v1/env                 ← NOWE: surowa sonda lokalna
  *   POST /v1/{command}
  *   WS   /v1/events
+ *
+ * Nowe command paths:
+ *   env/probe, env/scan-markers
+ *   machines/heartbeat (z hardware + environment)
  *
  * UI operatorskie: GET /  (embedded, local-only)
  */
@@ -16,8 +21,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "./lib/ws-lite.js";
 import { MeshStore } from "./lib/store.js";
+import { probeEnvironment } from "./lib/probe.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const VERSION = "0.3.0";
 const PORT = Number(process.env.CORE_PORT || process.env.PORT || 8765);
 const HOST = process.env.CORE_HOST || "0.0.0.0";
 const DATA =
@@ -38,15 +45,26 @@ const store = new MeshStore(DATA, {
   gammaIp: GAMMA_IP,
 });
 
-// Mark BETA online as coordinator host
-const beta = store.snap.machines.find((m) => m.id === "beta");
-if (beta) {
-  beta.status = "online";
-  beta.replicaHealth = 100;
-  beta.integrity = "zweryfikowana";
-  store.snap.config.endpoint = process.env.CORE_ENDPOINT || `http://${BETA_IP}:${PORT}`;
-  store.save();
+// --- Sonda środowiska przy starcie ---
+const localProbe = store.applyLocalProbe({
+  meshRoot: SSD,
+  machineId: process.env.MESH_NODE_ID || undefined,
+});
+const markerScan = store.mergeNodeMarkers(SSD);
+store.snap.config.endpoint =
+  process.env.CORE_ENDPOINT || `http://${store.lastProbe?.primaryIp || BETA_IP}:${PORT}`;
+// keep loopback-friendly endpoint when bound for local dev
+if (HOST === "127.0.0.1" || process.env.CORE_ENDPOINT) {
+  store.snap.config.endpoint =
+    process.env.CORE_ENDPOINT || `http://${HOST === "0.0.0.0" ? "127.0.0.1" : HOST}:${PORT}`;
 }
+store.audit(
+  "system",
+  "core/boot",
+  `mesh-core ${VERSION} · probe ${localProbe.env.hostname} @ ${localProbe.env.primaryIp} · machine=${localProbe.machineId} · markers=${markerScan.merged}`,
+  "info",
+);
+store.save();
 
 const PUBLIC = path.join(__dirname, "public");
 
@@ -112,16 +130,33 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/v1/health" && req.method === "GET") {
     return sendJson(res, 200, {
       ok: true,
-      version: "0.2.0",
+      version: VERSION,
       cluster: store.snap.config.clusterName,
       mode: "local",
       uptimeSec: Math.floor(process.uptime()),
       machinesOnline: store.snap.machines.filter((m) => m.status === "online").length,
+      environmentProbed: Boolean(store.snap.config.environmentProbed),
+      localMachineId: store.snap._meta?.localMachineId || null,
+      hostname: store.lastProbe?.hostname || null,
     });
   }
 
   if (url.pathname === "/v1/cluster/snapshot" && req.method === "GET") {
     return sendJson(res, 200, store.getPublic());
+  }
+
+  // Live raw environment probe (always fresh)
+  if (url.pathname === "/v1/env" && req.method === "GET") {
+    const env = probeEnvironment({
+      meshRoot: SSD,
+      nodeId: store.snap._meta?.localMachineId || process.env.MESH_NODE_ID,
+    });
+    return sendJson(res, 200, {
+      ok: true,
+      environment: env,
+      localMachineId: store.snap._meta?.localMachineId || null,
+      markers: store.snap._meta?.nodeMarkers || [],
+    });
   }
 
   if (url.pathname.startsWith("/v1/") && req.method === "POST") {
@@ -152,7 +187,7 @@ store.onEvent((n) => {
   wss.broadcast(JSON.stringify(n));
 });
 
-// Metrics tick every 5s
+// Metrics + local probe tick every 5s
 setInterval(() => {
   try {
     store.tick();
@@ -162,10 +197,14 @@ setInterval(() => {
 }, 5000);
 
 server.listen(PORT, HOST, () => {
-  console.log(`[mesh-core 0.2.0] local-only · http://${HOST}:${PORT}`);
+  const env = store.lastProbe;
+  console.log(`[mesh-core ${VERSION}] local-only · http://${HOST}:${PORT}`);
   console.log(`[mesh-core] data=${DATA}`);
   console.log(`[mesh-core] cluster=${store.snap.config.clusterName}`);
-  console.log(`[mesh-core] UI=http://127.0.0.1:${PORT}/  API=/v1/health`);
+  console.log(
+    `[mesh-core] probe host=${env?.hostname} ip=${env?.primaryIp} cpu=${env?.cpu?.model} ram=${env?.memory?.totalGb}GB machine=${localProbe.machineId}`,
+  );
+  console.log(`[mesh-core] UI=http://127.0.0.1:${PORT}/  API=/v1/health  ENV=/v1/env`);
 });
 
 process.on("SIGINT", () => {

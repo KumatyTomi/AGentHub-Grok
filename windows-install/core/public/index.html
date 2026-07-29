@@ -10,7 +10,7 @@
   <div class="bg"></div>
   <header class="top">
     <div>
-      <p class="eyebrow">LOCAL ONLY · LAN · mesh-core 0.2</p>
+      <p class="eyebrow">LOCAL ONLY · LAN · mesh-core 0.3 · sonda środowiska</p>
       <h1 id="cluster-name">MESH</h1>
       <p class="muted" id="endpoint">—</p>
     </div>
@@ -19,12 +19,20 @@
       <div class="chip"><span>ONLINE</span><strong id="online">—</strong></div>
       <div class="chip"><span>TASKS</span><strong id="tasks">—</strong></div>
       <div class="chip"><span>LAT</span><strong id="lat">—</strong></div>
+      <div class="chip"><span>PROBE</span><strong id="probe">—</strong></div>
     </div>
   </header>
 
   <main>
     <section class="panel">
-      <h2>Maszyny (3 PC)</h2>
+      <h2>Środowisko lokalne (sonda)</h2>
+      <div id="env-panel" class="env-grid">
+        <p class="muted">Ładowanie sondy…</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>Maszyny klastra</h2>
       <div id="machines" class="grid3"></div>
     </section>
 
@@ -32,6 +40,8 @@
       <div class="panel">
         <h2>Akcje operatorskie</h2>
         <div class="actions">
+          <button type="button" data-cmd="env/probe">Odśwież sondę środowiska</button>
+          <button type="button" data-cmd="env/scan-markers">Skanuj node.json</button>
           <button type="button" data-cmd="cluster/create-invite">Generuj invite</button>
           <button type="button" data-cmd="tasks/create" data-body='{"title":"Zadanie lokalne","assignedTo":"alpha"}'>Nowe zadanie → ALPHA</button>
           <button type="button" data-cmd="machines/heartbeat" data-body='{"id":"alpha","replicaHealth":100}'>Heartbeat ALPHA</button>
@@ -57,8 +67,9 @@
   </main>
 
   <footer>
-    AGentHub-Grok · dane nie wychodzą z LAN ·
+    AGentHub-Grok · sonda czyta REALNY host · dane w LAN ·
     <a href="/v1/health">/v1/health</a> ·
+    <a href="/v1/env">/v1/env</a> ·
     <a href="/v1/cluster/snapshot">/v1/cluster/snapshot</a>
   </footer>
   <script src="/app.js"></script>

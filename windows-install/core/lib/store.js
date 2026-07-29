@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import { createDefaultSnapshot, nowIso, publicSnapshot, uid } from "./snapshot.js";
+import {
+  probeEnvironment,
+  envToMachinePatch,
+  scanNodeMarkers,
+  resolveLocalMachineId,
+} from "./probe.js";
 
 export class MeshStore {
   /**
@@ -14,6 +20,7 @@ export class MeshStore {
     this.bootOpts = bootOpts;
     this.listeners = new Set();
     this.snap = this.load();
+    this.lastProbe = null;
   }
 
   load() {
@@ -108,11 +115,186 @@ export class MeshStore {
     return h === this.hashPin(pin);
   }
 
-  /**
-   * Route mutating commands: path like "cluster/create" or "machines/set-role"
-   */
-  command(path, body = {}) {
-    const p = String(path || "").replace(/^\/+/, "");
+  applyLocalProbe(opts = {}) {
+    const meshRoot =
+      opts.meshRoot || this.bootOpts.ssdPath || process.env.MESH_ROOT || process.cwd();
+    const env = probeEnvironment({
+      meshRoot,
+      nodeId: opts.nodeId || process.env.MESH_NODE_ID,
+      role: opts.role || process.env.MESH_ROLE,
+      light: Boolean(opts.light),
+    });
+    this.lastProbe = env;
+
+    const machineId =
+      opts.machineId ||
+      resolveLocalMachineId(this.snap.machines, env, this.bootOpts) ||
+      "beta";
+
+    this.applyMachineEnv(machineId, env, {
+      role: opts.role,
+      markOnline: true,
+      replicaHealth: 100,
+    });
+
+    this.snap._meta = this.snap._meta || {};
+    this.snap._meta.lastLocalProbe = env.probedAt;
+    this.snap._meta.localMachineId = machineId;
+    this.snap.config.environmentProbed = true;
+    this.snap.config.probedAt = env.probedAt;
+
+    return { env, machineId };
+  }
+
+  mergeNodeMarkers(meshRoot) {
+    const root = meshRoot || this.bootOpts.ssdPath || process.env.MESH_ROOT;
+    const markers = scanNodeMarkers(root);
+    if (!markers.length) return { merged: 0, markers: [] };
+
+    let merged = 0;
+    for (const mk of markers) {
+      let id = null;
+      if (/[/\\]alpha[/\\]/i.test(mk.path) || /alpha/i.test(path.basename(path.dirname(mk.path)))) {
+        id = "alpha";
+      } else if (/[/\\]beta[/\\]/i.test(mk.path) || /beta/i.test(path.basename(path.dirname(mk.path)))) {
+        id = "beta";
+      } else if (
+        /[/\\]gamma[/\\]/i.test(mk.path) ||
+        /gamma/i.test(path.basename(path.dirname(mk.path)))
+      ) {
+        id = "gamma";
+      }
+
+      if (!id && mk.ip) {
+        const hit = this.snap.machines.find((m) => m.host === mk.ip);
+        if (hit) id = hit.id;
+      }
+
+      if (!id) {
+        id = uid("node");
+        this.snap.machines.push({
+          id,
+          name: mk.hostname || id.toUpperCase(),
+          host: mk.ip || "0.0.0.0",
+          os: mk.os || "unknown",
+          status: "offline",
+          role: mk.role || "obserwator",
+          roleAuto: true,
+          replicaHealth: 0,
+          activeTasks: 0,
+          lastSync: mk.installedAt || nowIso(),
+          ssdPath: root,
+          integrity: "w toku",
+          metrics: {
+            cpu: 0,
+            ram: 0,
+            vram: 0,
+            disk: 0,
+            network: 0,
+            tempCpu: 0,
+            tempGpu: 0,
+            throttling: false,
+          },
+          hardware: { cpu: "—", gpu: "—", ramGb: 0, vramGb: 0, diskTb: 0 },
+          environment: null,
+          marker: mk,
+        });
+        merged++;
+        continue;
+      }
+
+      const m = this.snap.machines.find((x) => x.id === id);
+      if (!m) continue;
+      if (mk.ip) m.host = mk.ip;
+      if (mk.os) m.os = mk.os;
+      m.marker = mk;
+      merged++;
+    }
+
+    this.snap._meta = this.snap._meta || {};
+    this.snap._meta.nodeMarkers = markers;
+    this.audit("probe", "env/scan-markers", `${merged} marker(s) z ${root}`, "info");
+    this.save();
+    return { merged, markers };
+  }
+
+  applyMachineEnv(machineId, envOrPatch, opts = {}) {
+    let m = this.snap.machines.find((x) => x.id === machineId || x.name === machineId);
+    if (!m && opts.create) {
+      m = {
+        id: machineId,
+        name: String(machineId).toUpperCase(),
+        host: "0.0.0.0",
+        os: "unknown",
+        status: "offline",
+        role: opts.role || "obserwator",
+        roleAuto: true,
+        replicaHealth: 0,
+        activeTasks: 0,
+        lastSync: nowIso(),
+        ssdPath: this.bootOpts.ssdPath || "",
+        integrity: "w toku",
+        metrics: {
+          cpu: 0,
+          ram: 0,
+          vram: 0,
+          disk: 0,
+          network: 0,
+          tempCpu: 0,
+          tempGpu: 0,
+          throttling: false,
+        },
+        hardware: { cpu: "—", gpu: "—", ramGb: 0, vramGb: 0, diskTb: 0 },
+      };
+      this.snap.machines.push(m);
+    }
+    if (!m) return null;
+
+    const isFullEnv = envOrPatch && envOrPatch.cpu && envOrPatch.memory && envOrPatch.probedAt;
+    const patch = isFullEnv ? envToMachinePatch(envOrPatch) : envOrPatch || {};
+
+    if (patch.host) m.host = patch.host;
+    if (patch.os) m.os = patch.os;
+    if (patch.metrics) {
+      m.metrics = { ...m.metrics, ...Object.fromEntries(
+        Object.entries(patch.metrics).filter(([, v]) => v !== undefined && v !== null),
+      ) };
+    }
+    if (patch.hardware) {
+      m.hardware = {
+        ...m.hardware,
+        ...Object.fromEntries(
+          Object.entries(patch.hardware).filter(([, v]) => v !== undefined && v !== null && v !== "—"),
+        ),
+      };
+      // still allow explicit "—" only if nothing known yet
+      for (const [k, v] of Object.entries(patch.hardware || {})) {
+        if ((m.hardware[k] === undefined || m.hardware[k] === "—" || m.hardware[k] === 0) && v) {
+          m.hardware[k] = v;
+        }
+      }
+    }
+    if (patch.environment) {
+      m.environment = { ...(m.environment || {}), ...patch.environment };
+    } else if (isFullEnv) {
+      m.environment = envToMachinePatch(envOrPatch).environment;
+    }
+
+    if (opts.markOnline !== false) {
+      m.status = opts.status || "online";
+      m.lastSync = nowIso();
+    }
+    if (opts.replicaHealth != null) {
+      m.replicaHealth = Math.max(0, Math.min(100, Number(opts.replicaHealth)));
+      if (m.replicaHealth >= 100) m.integrity = "zweryfikowana";
+    }
+    if (opts.role) m.role = opts.role;
+
+    return m;
+  }
+
+  command(cmdPath, body = {}) {
+    const p = String(cmdPath || "").replace(/^\/+/, "");
     const actor = body.actor || "operator";
 
     const sensitive = [
@@ -201,16 +383,43 @@ export class MeshStore {
         return { ok: true, data: { accepted: true, path: p } };
       }
       case "machines/heartbeat": {
-        const m = this.snap.machines.find((x) => x.id === body.id);
+        const id = body.id || body.nodeId;
+        if (!id) return { ok: false, error: "Wymagane id maszyny", status: 400 };
+
+        const m = this.applyMachineEnv(
+          id,
+          {
+            host: body.host,
+            os: body.os,
+            hostname: body.hostname,
+            metrics: body.metrics,
+            hardware: body.hardware,
+            environment: body.environment || null,
+          },
+          {
+            create: Boolean(body.create),
+            markOnline: true,
+            replicaHealth: body.replicaHealth ?? 100,
+            role: body.role,
+            status: "online",
+          },
+        );
+
         if (!m) return { ok: false, error: "Nie znaleziono maszyny", status: 404 };
-        m.status = "online";
-        m.lastSync = nowIso();
-        if (body.metrics) m.metrics = { ...m.metrics, ...body.metrics };
-        if (body.hardware) m.hardware = { ...m.hardware, ...body.hardware };
-        m.replicaHealth = body.replicaHealth ?? Math.min(100, (m.replicaHealth || 0) + 10);
-        if (m.replicaHealth >= 100) m.integrity = "zweryfikowana";
+
+        if (body.env && body.env.cpu) {
+          this.applyMachineEnv(id, body.env, {
+            markOnline: true,
+            replicaHealth: body.replicaHealth ?? 100,
+          });
+        }
+
+        if (body.hardware?.cpu && body.hardware.cpu !== "—") {
+          if (m.integrity !== "niezgodność") m.integrity = "zweryfikowana";
+        }
+
         this.save();
-        return { ok: true, data: { accepted: true, path: p } };
+        return { ok: true, data: { accepted: true, path: p, machine: stripMarker(m) } };
       }
       case "machines/quarantine": {
         const m = this.snap.machines.find((x) => x.id === body.id);
@@ -220,6 +429,38 @@ export class MeshStore {
         this.notify("Kwarantanna", m.name, "alarm");
         this.save();
         return { ok: true, data: { accepted: true, path: p } };
+      }
+      case "env/probe": {
+        const result = this.applyLocalProbe({
+          meshRoot: body.meshRoot || this.bootOpts.ssdPath,
+          machineId: body.id,
+          role: body.role,
+        });
+        if (body.scanMarkers !== false) {
+          this.mergeNodeMarkers(body.meshRoot || this.bootOpts.ssdPath || process.env.MESH_ROOT);
+        }
+        this.audit(actor, p, `host=${result.env.hostname} ip=${result.env.primaryIp}`, "info");
+        this.notify(
+          "Sonda środowiska",
+          `${result.env.hostname} · ${result.env.cpu.model} · ${result.env.memory.totalGb} GB`,
+          "info",
+        );
+        this.save();
+        return {
+          ok: true,
+          data: {
+            accepted: true,
+            path: p,
+            machineId: result.machineId,
+            environment: result.env,
+          },
+        };
+      }
+      case "env/scan-markers": {
+        const r = this.mergeNodeMarkers(
+          body.meshRoot || this.bootOpts.ssdPath || process.env.MESH_ROOT,
+        );
+        return { ok: true, data: { accepted: true, path: p, ...r } };
       }
       case "tasks/create": {
         const task = {
@@ -292,17 +533,49 @@ export class MeshStore {
     }
   }
 
-  /** Soft tick: age tasks, jitter metrics on online machines */
   tick() {
+    const localId = this.snap._meta?.localMachineId;
+
+    try {
+      const env = probeEnvironment({
+        meshRoot: this.bootOpts.ssdPath || process.env.MESH_ROOT || process.cwd(),
+        nodeId: localId,
+        light: true,
+      });
+      this.lastProbe = { ...(this.lastProbe || {}), ...env, gpu: this.lastProbe?.gpu ?? env.gpu };
+      if (localId) {
+        this.applyMachineEnv(localId, env, {
+          markOnline: true,
+          replicaHealth: 100,
+        });
+      }
+    } catch {
+      /* ignore */
+    }
+
+    const staleMs = 45_000;
+    const now = Date.now();
+    for (const m of this.snap.machines) {
+      if (m.id === localId) continue;
+      if (m.status !== "online" && m.status !== "synchronizacja") continue;
+      const last = Date.parse(m.lastSync || 0);
+      if (last && now - last > staleMs) {
+        m.status = "offline";
+        this.notify("Utracono łączność", `${m.name} bez heartbeat >45s`, "ostrzeżenie");
+      }
+    }
+
     for (const m of this.snap.machines) {
       if (m.status !== "online") continue;
-      const j = () => Math.max(3, Math.min(98, (m.metrics.cpu || 10) + (Math.random() * 6 - 3)));
-      m.metrics.cpu = Math.round(j());
-      m.metrics.ram = Math.max(
-        8,
-        Math.min(95, (m.metrics.ram || 20) + (Math.random() * 4 - 2)),
-      );
-      m.metrics.network = Math.max(1, Math.min(90, (m.metrics.network || 5) + (Math.random() * 8 - 4)));
+      if (!m.environment) {
+        const j = () => Math.max(3, Math.min(98, (m.metrics.cpu || 10) + (Math.random() * 6 - 3)));
+        m.metrics.cpu = Math.round(j());
+        m.metrics.ram = Math.max(8, Math.min(95, (m.metrics.ram || 20) + (Math.random() * 4 - 2)));
+        m.metrics.network = Math.max(
+          1,
+          Math.min(90, (m.metrics.network || 5) + (Math.random() * 8 - 4)),
+        );
+      }
     }
     for (const t of this.snap.tasks) {
       if (t.state === "w toku" && t.progress < 100) {
@@ -313,4 +586,10 @@ export class MeshStore {
     }
     this.save();
   }
+}
+
+function stripMarker(m) {
+  if (!m) return m;
+  const { marker, ...rest } = m;
+  return rest;
 }

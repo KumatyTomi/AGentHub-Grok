@@ -10,3 +10,9 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+
+# runtime
+.mesh-data/
+.mesh-root/
+packages/mesh-core/data/
+

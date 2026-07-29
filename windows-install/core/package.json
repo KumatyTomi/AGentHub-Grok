@@ -1,16 +1,18 @@
 {
   "name": "@agenthub/mesh-core",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
-  "description": "Local-only AgentMesh cluster core for LAN (Windows/Linux). No cloud.",
+  "description": "Local-only AgentMesh cluster core for LAN (Windows/Linux). Environment probe + node-agent heartbeats. No cloud.",
   "bin": {
-    "mesh-core": "./server.mjs"
+    "mesh-core": "./server.mjs",
+    "mesh-node-agent": "./scripts/node-agent.mjs"
   },
   "scripts": {
     "start": "node server.mjs",
     "test": "node --test test/*.test.mjs",
-    "doctor": "node scripts/doctor.mjs"
+    "doctor": "node scripts/doctor.mjs",
+    "agent": "node scripts/node-agent.mjs"
   },
   "engines": {
     "node": ">=20"
