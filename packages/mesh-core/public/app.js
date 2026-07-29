@@ -1,5 +1,13 @@
 const $ = (s) => document.querySelector(s);
 
+function esc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&")
+    .replace(/</g, "<")
+    .replace(/>/g, ">")
+    .replace(/"/g, """);
+}
+
 async function health() {
   const t0 = performance.now();
   const r = await fetch("/v1/health");
@@ -9,7 +17,58 @@ async function health() {
   $("#health").style.color = j.ok ? "var(--ok)" : "var(--danger)";
   $("#lat").textContent = ms + " ms";
   $("#online").textContent = String(j.machinesOnline ?? "—");
+  $("#probe").textContent = j.environmentProbed ? "ON" : "OFF";
+  $("#probe").style.color = j.environmentProbed ? "var(--ok)" : "var(--warn)";
   return j;
+}
+
+async function envPanel() {
+  const r = await fetch("/v1/env");
+  const j = await r.json();
+  const e = j.environment || {};
+  const root = $("#env-panel");
+  const tools = e.tools || {};
+  const toolBits = [
+    tools.node ? `node ${tools.node}` : null,
+    tools.codex ? "codex ✓" : "codex —",
+    tools.git ? "git ✓" : "git —",
+    tools.ollama ? "ollama ✓" : "ollama —",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  root.innerHTML = `
+    <div class="env-card">
+      <span class="k">Host</span>
+      <strong>${esc(e.hostname)}</strong>
+      <span class="v">${esc(e.primaryIp)} · ${esc(e.platform)}/${esc(e.arch)}</span>
+    </div>
+    <div class="env-card">
+      <span class="k">CPU</span>
+      <strong>${esc(e.cpu?.model || "—")}</strong>
+      <span class="v">${e.cpu?.cores ?? "—"} cores · load ${esc(JSON.stringify(e.cpu?.loadAvg || []))}</span>
+    </div>
+    <div class="env-card">
+      <span class="k">RAM</span>
+      <strong>${esc(e.memory?.totalGb)} GB</strong>
+      <span class="v">użycie ${e.memory?.usedPercent ?? 0}%</span>
+    </div>
+    <div class="env-card">
+      <span class="k">GPU</span>
+      <strong>${esc(e.gpu?.name || "nie wykryto")}</strong>
+      <span class="v">${e.gpu?.vramMb ? e.gpu.vramMb + " MB VRAM" : "—"}</span>
+    </div>
+    <div class="env-card">
+      <span class="k">Dysk</span>
+      <strong>${e.disk ? esc(e.disk.path) : "—"}</strong>
+      <span class="v">${e.disk ? `${e.disk.usedPercent}% z ${e.disk.totalTb} TB` : "brak odczytu"}</span>
+    </div>
+    <div class="env-card">
+      <span class="k">Narzędzia</span>
+      <strong>local machine = ${esc(j.localMachineId || "—")}</strong>
+      <span class="v">${esc(toolBits)}</span>
+    </div>
+  `;
 }
 
 async function snapshot() {
@@ -26,12 +85,21 @@ async function snapshot() {
     el.className = "machine";
     const on = m.status === "online";
     const q = m.status === "kwarantanna";
+    const hw = m.hardware || {};
+    const env = m.environment;
     el.innerHTML = `
-      <h3><span class="dot ${on ? "on" : q ? "q" : ""}"></span>${m.name}</h3>
-      <div class="role">${m.role} · ${m.status}</div>
-      <div class="meta">${m.host}<br/>replika ${m.replicaHealth}% · ${m.integrity}</div>
-      <div class="meta">CPU ${Math.round(m.metrics?.cpu ?? 0)}% · RAM ${Math.round(m.metrics?.ram ?? 0)}%</div>
+      <h3><span class="dot ${on ? "on" : q ? "q" : ""}"></span>${esc(m.name)}</h3>
+      <div class="role">${esc(m.role)} · ${esc(m.status)}</div>
+      <div class="meta">${esc(m.host)} · ${esc(m.os)}<br/>replika ${m.replicaHealth}% · ${esc(m.integrity)}</div>
+      <div class="meta"><b>CPU</b> ${esc(hw.cpu || "—")}<br/><b>GPU</b> ${esc(hw.gpu || "—")}<br/>
+        ${hw.ramGb || 0} GB RAM · ${hw.vramGb || 0} GB VRAM · ${hw.diskTb || 0} TB</div>
+      <div class="meta">CPU ${Math.round(m.metrics?.cpu ?? 0)}% · RAM ${Math.round(m.metrics?.ram ?? 0)}% · Dysk ${Math.round(m.metrics?.disk ?? 0)}%</div>
       <div class="bar"><i style="width:${m.metrics?.cpu ?? 0}%"></i></div>
+      ${
+        env
+          ? `<div class="meta probed">sonda ${esc(env.hostname)} · ${esc(env.probedAt?.slice(11, 19) || "")}</div>`
+          : `<div class="meta muted">brak sondy — uruchom node-agent</div>`
+      }
     `;
     root.appendChild(el);
   }
@@ -40,7 +108,7 @@ async function snapshot() {
   audit.innerHTML = "";
   for (const a of (s.audit || []).slice(0, 16)) {
     const li = document.createElement("li");
-    li.innerHTML = `<b>${a.action}</b> · ${a.detail} <span style="opacity:.6">${a.at?.slice(11, 19) || ""}</span>`;
+    li.innerHTML = `<b>${esc(a.action)}</b> · ${esc(a.detail)} <span style="opacity:.6">${esc(a.at?.slice(11, 19) || "")}</span>`;
     audit.appendChild(li);
   }
 
@@ -52,7 +120,7 @@ async function snapshot() {
     for (const t of s.tasks.slice(0, 12)) {
       const d = document.createElement("div");
       d.className = "task";
-      d.innerHTML = `<strong>${t.title}</strong> · ${t.state} · ${t.assignedTo || "—"} · ${t.progress}%
+      d.innerHTML = `<strong>${esc(t.title)}</strong> · ${esc(t.state)} · ${esc(t.assignedTo || "—")} · ${t.progress}%
         <div class="bar"><i style="width:${t.progress}%"></i></div>`;
       tl.appendChild(d);
     }
@@ -72,6 +140,18 @@ async function cmd(path, body = {}) {
   if (!r.ok) alert(j.error || "Błąd " + r.status);
   else if (j.invite) {
     alert("Invite: " + j.invite.id + "\nEndpoint: " + j.invite.coreEndpoint + "\nUsuń po użyciu.");
+  } else if (j.environment) {
+    alert(
+      "Sonda OK\n" +
+        j.environment.hostname +
+        " · " +
+        j.environment.primaryIp +
+        "\n" +
+        j.environment.cpu?.model +
+        "\n" +
+        j.environment.memory?.totalGb +
+        " GB RAM",
+    );
   }
   await refresh();
 }
@@ -93,14 +173,13 @@ function bindActions() {
 async function refresh() {
   try {
     await health();
-    await snapshot();
+    await Promise.all([snapshot(), envPanel()]);
   } catch (e) {
     $("#health").textContent = "DOWN";
     $("#health").style.color = "var(--danger)";
   }
 }
 
-// live events
 try {
   const proto = location.protocol === "https:" ? "wss" : "ws";
   const ws = new WebSocket(`${proto}://${location.host}/v1/events`);

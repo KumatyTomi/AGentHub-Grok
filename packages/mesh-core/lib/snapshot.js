@@ -45,6 +45,8 @@ export function createDefaultSnapshot(opts = {}) {
       pinSet: false,
       requirePinForSensitive: true,
       onboarded: false,
+      environmentProbed: false,
+      probedAt: null,
     },
     machines: [
       {
@@ -64,10 +66,11 @@ export function createDefaultSnapshot(opts = {}) {
         hardware: {
           cpu: "—",
           gpu: "—",
-          ramGb: 64,
-          vramGb: 12,
-          diskTb: 2,
+          ramGb: 0,
+          vramGb: 0,
+          diskTb: 0,
         },
+        environment: null,
         services: ["codex-cli", "git", "agentmesh-node"],
         labels: { monitors: 2, touch: false },
       },
@@ -76,22 +79,23 @@ export function createDefaultSnapshot(opts = {}) {
         name: "BETA",
         host: betaIp,
         os: "Windows 11",
-        status: "online",
+        status: "offline",
         role: "koordynator",
         roleAuto: false,
-        replicaHealth: 100,
+        replicaHealth: 0,
         activeTasks: 0,
         lastSync: t,
         ssdPath,
-        integrity: "zweryfikowana",
-        metrics: { ...emptyMetrics(), cpu: 22, ram: 35 },
+        integrity: "w toku",
+        metrics: emptyMetrics(),
         hardware: {
           cpu: "—",
-          gpu: "iGPU",
-          ramGb: 32,
+          gpu: "—",
+          ramGb: 0,
           vramGb: 0,
-          diskTb: 2,
+          diskTb: 0,
         },
+        environment: null,
         services: ["mesh-core", "operator-ui"],
         labels: { monitors: 1, touch: true },
       },
@@ -112,10 +116,11 @@ export function createDefaultSnapshot(opts = {}) {
         hardware: {
           cpu: "—",
           gpu: "—",
-          ramGb: 64,
-          vramGb: 16,
-          diskTb: 2,
+          ramGb: 0,
+          vramGb: 0,
+          diskTb: 0,
         },
+        environment: null,
         services: ["ollama", "agentmesh-node"],
         labels: { monitors: 1, touch: false },
       },
@@ -154,7 +159,7 @@ export function createDefaultSnapshot(opts = {}) {
         actor: "system",
         action: "core/boot",
         severity: "info",
-        detail: "mesh-core 0.2.0 start — tryb local-only",
+        detail: "mesh-core 0.3.0 start — tryb local-only + sonda środowiska",
       },
     ],
     trash: [],
@@ -168,16 +173,26 @@ export function createDefaultSnapshot(opts = {}) {
       },
     ],
     notifications: [],
-    // internal (stripped or kept — UI ignores unknown)
     _meta: {
-      version: "0.2.0",
+      version: "0.3.0",
       invites: [],
       pinHash: null,
+      localMachineId: null,
+      lastLocalProbe: null,
+      nodeMarkers: [],
     },
   };
 }
 
 export function publicSnapshot(snap) {
   const { _meta, ...rest } = snap;
-  return rest;
+  // strip internal marker blobs from machines for API cleanliness
+  return {
+    ...rest,
+    machines: (rest.machines || []).map((m) => {
+      if (!m || !m.marker) return m;
+      const { marker, ...pub } = m;
+      return { ...pub, hasMarker: true };
+    }),
+  };
 }

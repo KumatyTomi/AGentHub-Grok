@@ -69,6 +69,7 @@ h2 { margin: 0 0 0.75rem; font-size: 0.95rem; }
 .machine h3 { margin: 0; font-size: 1rem; }
 .role { font-family: ui-monospace, monospace; font-size: 11px; color: var(--accent); }
 .meta { font-size: 12px; color: var(--muted); margin-top: 0.35rem; font-family: ui-monospace, monospace; }
+.meta.probed { color: var(--accent-dim); }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: var(--muted); }
 .dot.on { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 .dot.q { background: var(--danger); }
@@ -114,5 +115,42 @@ button.warn { border-color: var(--danger); color: #ffc9c9; }
   font-size: 0.85rem;
   background: #061012;
 }
+.env-grid {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+.env-card {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.7rem 0.8rem;
+  background: #061012;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-height: 5.5rem;
+}
+.env-card .k {
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
+.env-card strong {
+  font-size: 0.88rem;
+  line-height: 1.25;
+  word-break: break-word;
+}
+.env-card .v {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: ui-monospace, monospace;
+}
 footer { color: var(--muted); font-size: 12px; padding-bottom: 2rem; font-family: ui-monospace, monospace; }
 footer a { color: var(--accent); }
+
+@media (max-width: 480px) {
+  .top, main, footer { padding: 0.85rem; }
+  h1 { font-size: 1.3rem; }
+}

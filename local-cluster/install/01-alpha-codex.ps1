@@ -1,10 +1,10 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  ALPHA — stacja kodowania (2 monitory): Node, Git, Codex CLI, node AgentMesh.
+  ALPHA — stacja kodowania: Node, Git, Codex CLI, node-agent → mesh-core.
 .DESCRIPTION
-  Instaluje narzędzia DEVELOPERSKIE lokalnie. Codex działa w terminalu na tym PC.
-  Pełny air-gap: CODEX_MODE=local + Ollama na GAMMA.
+  Instaluje narzędzia DEVELOPERSKIE lokalnie. Codex w terminalu.
+  node-agent wysyła sondę środowiska (CPU/RAM/IP) do BETA.
 .EXAMPLE
   .\01-alpha-codex.ps1 -EnvFile ..\config\cluster.env
 #>
@@ -18,7 +18,7 @@ $Common = Join-Path $PSScriptRoot "common.ps1"
 . $Common
 
 Assert-Admin
-Write-Mesh "=== ALPHA · instalacja stacji kodowania (lokalnie) ===" "INFO"
+Write-Mesh "=== ALPHA · instalacja stacji kodowania + node-agent ===" "INFO"
 
 $envMap = Import-ClusterEnv -Path $EnvFile
 $AlphaIp   = Get-EnvOr $envMap "ALPHA_IP" "10.20.0.10"
@@ -31,13 +31,14 @@ $Workspace = Get-EnvOr $envMap "ALPHA_WORKSPACE" "E:\AgentMesh\alpha\workspace"
 $CodexMode = Get-EnvOr $envMap "CODEX_MODE" "local"
 $OllamaBase = Get-EnvOr $envMap "CODEX_OLLAMA_BASE" "http://10.20.0.30:11434/v1"
 $NodeMajor = [int](Get-EnvOr $envMap "NODE_MAJOR" "22")
+$CorePort  = [int](Get-EnvOr $envMap "CORE_PORT" "8765")
 
 Set-StaticIpHint -Ip $AlphaIp -Gateway $Gateway
 Ensure-Dir $MeshRoot
 Ensure-Dir $Workspace
 Ensure-Dir (Join-Path $MeshRoot "alpha\logs")
+Ensure-Dir (Join-Path $MeshRoot "alpha\agent")
 
-# --- Git ---
 if (-not (Test-CommandExists "git")) {
   if (Install-WingetIfNeeded) {
     winget install Git.Git --accept-package-agreements --accept-source-agreements
@@ -50,11 +51,9 @@ if (-not (Test-CommandExists "git")) {
 
 Install-NodeLts -Major $NodeMajor
 
-# --- Codex CLI ---
 if (-not $SkipCodexInstall) {
-  Write-Mesh "Instalacja Codex CLI (lokalny agent w terminalu)..." "INFO"
+  Write-Mesh "Instalacja Codex CLI..." "INFO"
   try {
-    # Oficjalny installer Windows
     $installPs1 = Join-Path $env:TEMP "codex-install.ps1"
     Invoke-WebRequest -Uri "https://chatgpt.com/codex/install.ps1" -OutFile $installPs1 -UseBasicParsing
     & powershell -ExecutionPolicy Bypass -File $installPs1
@@ -71,7 +70,6 @@ if (-not $SkipCodexInstall) {
   Write-Mesh "Pominięto instalację Codex (-SkipCodexInstall)" "WARN"
 }
 
-# --- Konfiguracja Codex local-first ---
 $codexHome = Join-Path $env:USERPROFILE ".codex"
 Ensure-Dir $codexHome
 $configPath = Join-Path $codexHome "config.toml"
@@ -80,26 +78,18 @@ if ($UseCloudCodex -or $CodexMode -eq "cloud") {
   Write-Mesh "CODEX_MODE=cloud — model w internecie (wymaga codex login)." "WARN"
   @"
 # AgentMesh ALPHA — cloud model (opcjonalnie)
-# model = "o3"
 # Po instalacji: codex login
 "@ | Set-Content -Path $configPath -Encoding UTF8
 } else {
   Write-Mesh "CODEX_MODE=local — model przez Ollama na GAMMA ($OllamaBase)" "OK"
   @"
 # AgentMesh ALPHA — local-only via Ollama on GAMMA
-# Docs: codex --oss --local-provider ollama
-# Upewnij się, że GAMMA serwuje Ollamę i firewall puszcza $Subnet
-
 [model_providers.ollama_gamma]
 name = "Ollama GAMMA (LAN)"
 base_url = "$OllamaBase"
-
-# Preferencje sandbox: zapis tylko w workspace
-# sandbox_mode = "workspace-write"
 "@ | Set-Content -Path $configPath -Encoding UTF8
 }
 
-# Helper batch do szybkiego startu
 $startCmd = Join-Path $MeshRoot "alpha\start-codex.cmd"
 @"
 @echo off
@@ -115,37 +105,76 @@ if /I "$CodexMode"=="local" (
 )
 pause
 "@ | Set-Content -Path $startCmd -Encoding ASCII
-Write-Mesh "Skrót startu: $startCmd" "OK"
+Write-Mesh "Skrót Codex: $startCmd" "OK"
 
-# Node marker + hosts
+# Copy node-agent from mesh-core pack if present
+$agentSrcCandidates = @(
+  (Join-Path $PSScriptRoot "..\core\scripts\node-agent.mjs"),
+  (Join-Path $PSScriptRoot "..\..\packages\mesh-core\scripts\node-agent.mjs"),
+  (Join-Path $PSScriptRoot "..\packages\mesh-core\scripts\node-agent.mjs")
+)
+$agentLibCandidates = @(
+  (Join-Path $PSScriptRoot "..\core\lib"),
+  (Join-Path $PSScriptRoot "..\..\packages\mesh-core\lib"),
+  (Join-Path $PSScriptRoot "..\packages\mesh-core\lib")
+)
+$agentDest = Join-Path $MeshRoot "alpha\agent"
+$copied = $false
+for ($i = 0; $i -lt $agentSrcCandidates.Count; $i++) {
+  $src = $agentSrcCandidates[$i]
+  $lib = $agentLibCandidates[$i]
+  if ((Test-Path $src) -and (Test-Path $lib)) {
+    Ensure-Dir (Join-Path $agentDest "scripts")
+    Ensure-Dir (Join-Path $agentDest "lib")
+    Copy-Item $src (Join-Path $agentDest "scripts\node-agent.mjs") -Force
+    Copy-Item (Join-Path $lib "*") (Join-Path $agentDest "lib") -Recurse -Force
+    $copied = $true
+    Write-Mesh "Skopiowano node-agent → $agentDest" "OK"
+    break
+  }
+}
+if (-not $copied) {
+  Write-Mesh "Brak node-agent w packu — skopiuj packages/mesh-core/scripts + lib ręcznie." "WARN"
+}
+
+$startAgent = Join-Path $MeshRoot "alpha\start-agent.cmd"
+@"
+@echo off
+set CORE_ENDPOINT=http://${BetaIp}:$CorePort
+set MESH_NODE_ID=alpha
+set MESH_ROLE=kodowanie
+set MESH_ROOT=$MeshRoot
+set HEARTBEAT_MS=5000
+cd /d "$agentDest"
+echo === node-agent ALPHA → %CORE_ENDPOINT% ===
+echo Wysyła prawdziwe CPU/RAM/IP do mesh-core (sonda środowiska)
+node scripts\node-agent.mjs
+"@ | Set-Content -Path $startAgent -Encoding ASCII
+Write-Mesh "Skrót agent: $startAgent" "OK"
+
 Write-HostsFileEntries -AlphaIp $AlphaIp -BetaIp $BetaIp -GammaIp $GammaIp
 New-MeshNodeMarker -Root (Join-Path $MeshRoot "alpha") -Role "kodowanie" -Ip $AlphaIp -Extra @{
   workspace = $Workspace
   codexMode = $CodexMode
   ollamaBase = $OllamaBase
   monitors = 2
+  agent = $true
 }
 
-# Connectivity checks
 Test-LanPeer -Ip $BetaIp -Label "BETA core"
 Test-LanPeer -Ip $GammaIp -Label "GAMMA ollama"
 
 Write-Host ""
-Write-Mesh "ALPHA gotowa (narzędzia)." "OK"
+Write-Mesh "ALPHA gotowa." "OK"
 Write-Host @"
 
 Następne kroki na ALPHA:
-  1. Ustaw IP $AlphaIp (jeśli jeszcze nie).
-  2. Otwórz nowy terminal (żeby PATH złapał codex/node/git).
-  3. cd $Workspace
-  4. Lokalnie z Ollamą:  codex --oss --local-provider ollama
-     albo:               $startCmd
-  5. Cloud (opcjonalnie): codex login   + CODEX_MODE=cloud
-  6. Dwumonitor: terminal Codex na L, logi/git na R.
+  1. Ustaw IP $AlphaIp
+  2. Nowe okno PowerShell (PATH)
+  3. Start agent (żeby core WIDZIAŁ to PC):  $startAgent
+  4. Codex:  $startCmd
+     lub:    cd $Workspace && codex --oss --local-provider ollama
 
-Air-gap checklist:
-  - GAMMA online z Ollama
-  - firewall puszcza tylko $Subnet
-  - NIE uruchamiaj codex login
+Bez node-agent BETA nie zobaczy prawdziwego sprzętu ALPHA.
 
 "@
